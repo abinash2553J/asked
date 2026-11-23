@@ -24,7 +24,7 @@ CACHE_MAX = 32
 THROTTLE_LIMIT = 5
 THROTTLE_WINDOW = 60
 
-app = FastAPI(title="Comment → Brief", docs_url="/api/docs", openapi_url="/api/openapi.json")
+app = FastAPI(title="Asked — YouTube Audience Question Brief", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
 _cache: "OrderedDict[tuple, tuple[float, dict]]" = OrderedDict()
 _hits: dict[str, deque[float]] = defaultdict(deque)

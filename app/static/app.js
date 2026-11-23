@@ -378,3 +378,25 @@ els.downloadJson.addEventListener("click", () => {
     "application/json",
   );
 });
+
+async function checkEngine() {
+  const statusEl = document.getElementById("engine-status");
+  const dotEl = document.getElementById("engine-dot");
+  if (!statusEl || !dotEl) return;
+  try {
+    const res = await fetch("/api/health");
+    const data = await res.json();
+    if (data.llm) {
+      statusEl.textContent = "Gemini LLM Active";
+      dotEl.style.background = "#16a34a";
+      dotEl.style.boxShadow = "0 0 8px rgba(22, 163, 74, 0.4)";
+    } else {
+      statusEl.textContent = "Template Engine";
+      dotEl.style.background = "#eab308";
+    }
+  } catch {
+    statusEl.textContent = "Engine Offline";
+    dotEl.style.background = "#dc2626";
+  }
+}
+checkEngine();

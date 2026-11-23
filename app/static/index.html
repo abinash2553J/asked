@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Comment → Brief</title>
-  <meta name="description" content="Turn a video's comment section into a ranked, evidence-backed idea brief.">
+  <title>Asked — YouTube Audience Question Brief</title>
+  <meta name="description" content="Asked turns any YouTube comment section into a ranked, evidence-backed question brief.">
   <meta name="theme-color" content="#FAF6ED">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='6' fill='%23E8442A'/><text x='32' y='47' font-family='Georgia,serif' font-size='46' text-anchor='middle' fill='%23FAF6ED'>?</text></svg>">
   <link rel="stylesheet" href="/styles.css">
@@ -16,10 +16,29 @@
   </div>
 
   <main class="shell">
-    <header class="hero">
-      <p class="kicker">Comment <span aria-hidden="true">→</span> brief</p>
+    <header class="site-header">
+      <div class="brand-group">
+        <a href="/" class="brand-link" aria-label="Asked Home">
+          <span class="brand-logo" aria-hidden="true">?</span>
+          <span class="brand-wordmark">Asked</span>
+        </a>
+        <span class="brand-divider" aria-hidden="true">/</span>
+        <span class="brand-tagline">YouTube Comment Intelligence</span>
+      </div>
+      <div class="header-meta">
+        <div class="engine-badge" id="engine-badge" title="Engine Status">
+          <span class="engine-dot" id="engine-dot" aria-hidden="true"></span>
+          <span class="engine-text" id="engine-status">Checking…</span>
+        </div>
+        <a class="header-link" href="/api/docs" target="_blank" rel="noopener">API Docs</a>
+        <a class="header-link" href="https://github.com/abinash2553J/Asked" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <p class="kicker">Asked <span aria-hidden="true">·</span> Audience Brief</p>
       <h1 class="hero-line">What does your audience <em>keep asking?</em></h1>
-      <p class="lede">Paste a video URL. We read the whole comment set, find the questions that repeat, and hand back a ranked brief with the evidence attached.</p>
+      <p class="lede">Paste a video URL. Asked mines the comments, filters out chatter, groups repeat questions into ranked clusters, and synthesizes ready-to-record video angles with evidence attached.</p>
 
       <form id="analyze-form" class="intake" novalidate>
         <label class="srelabel" for="url">Video URL</label>
@@ -47,7 +66,7 @@
           </fieldset>
         </div>
       </form>
-    </header>
+    </section>
 
     <section id="loading" class="panel" hidden aria-live="polite">
       <p class="status-line"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Fetching comments…</span></p>
