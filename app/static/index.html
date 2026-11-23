@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comment → Brief</title>
+  <meta name="description" content="Turn a video's comment section into a ranked, evidence-backed idea brief.">
+  <meta name="theme-color" content="#FAF6ED">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='6' fill='%23E8442A'/><text x='32' y='47' font-family='Georgia,serif' font-size='46' text-anchor='middle' fill='%23FAF6ED'>?</text></svg>">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="crop-marks" aria-hidden="true">
+    <span></span><span></span><span></span><span></span>
+  </div>
+
+  <main class="shell">
+    <header class="hero">
+      <p class="kicker">Comment <span aria-hidden="true">→</span> brief</p>
+      <h1 class="hero-line">What does your audience <em>keep asking?</em></h1>
+      <p class="lede">Paste a video URL. We read the whole comment set, find the questions that repeat, and hand back a ranked brief with the evidence attached.</p>
+
+      <form id="analyze-form" class="intake" novalidate>
+        <label class="srelabel" for="url">Video URL</label>
+        <div class="url-row">
+          <input id="url" name="url" type="text" inputmode="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" spellcheck="false" required aria-describedby="form-error">
+          <button class="btn-primary" type="submit">Analyze <span aria-hidden="true">→</span></button>
+        </div>
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+
+        <div class="options">
+          <fieldset class="option-group">
+            <legend class="option-legend">Comments</legend>
+            <div class="segmented" role="radiogroup" aria-label="Comment cap">
+              <label><input type="radio" name="cap" value="200"><span>200</span></label>
+              <label><input type="radio" name="cap" value="500" checked><span>500</span></label>
+              <label><input type="radio" name="cap" value="1000"><span>1000</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="option-group">
+            <legend class="option-legend">Order</legend>
+            <div class="segmented" role="radiogroup" aria-label="Comment order">
+              <label><input type="radio" name="order" value="relevance" checked><span>Relevance</span></label>
+              <label><input type="radio" name="order" value="recent"><span>Recent</span></label>
+            </div>
+          </fieldset>
+        </div>
+      </form>
+    </header>
+
+    <section id="loading" class="panel" hidden aria-live="polite">
+      <p class="status-line"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Fetching comments…</span></p>
+      <div class="progress-rule"><span></span></div>
+      <div class="skeleton" aria-hidden="true">
+        <div class="skeleton-row"><span class="sk sk-num"></span><span class="sk sk-line"></span></div>
+        <div class="skeleton-row"><span class="sk sk-num"></span><span class="sk sk-line short"></span></div>
+        <div class="skeleton-row"><span class="sk sk-num"></span><span class="sk sk-line"></span></div>
+      </div>
+    </section>
+
+    <section id="error" class="panel state" hidden role="alert">
+      <p class="kicker">Could not finish</p>
+      <h2 class="state-title" id="error-title">Something went wrong</h2>
+      <p class="state-body" id="error-body"></p>
+      <p class="state-next" id="error-next"></p>
+    </section>
+
+    <section id="empty" class="panel state" hidden>
+      <p class="kicker">Nothing to group yet</p>
+      <h2 class="state-title">No clear questions in these comments</h2>
+      <p class="state-body">Either the thread is mostly reactions, or the sample was too small to show a pattern.</p>
+      <ul class="state-next">
+        <li>Try <strong>Recent</strong> order — it surfaces a different slice.</li>
+        <li>Raise the cap to <strong>1000</strong> comments.</li>
+        <li>Try a video with an active comment section.</li>
+      </ul>
+    </section>
+
+    <section id="results" hidden>
+      <header class="masthead">
+        <div class="masthead-top">
+          <p class="kicker" id="meta-kicker">Brief</p>
+          <a class="watch" id="watch-link" href="#" target="_blank" rel="noopener" hidden>Watch on YouTube ↗</a>
+        </div>
+        <h2 class="video-title" id="video-title"></h2>
+        <p class="standfirst" id="standfirst"></p>
+        <div class="actions">
+          <button class="link-action" id="download-md" type="button">Download brief <span aria-hidden="true">(.md) ↓</span></button>
+          <button class="link-action subtle" id="download-json" type="button">JSON</button>
+        </div>
+      </header>
+
+      <section class="ledger-block" aria-label="Ranked questions">
+        <div class="section-head">
+          <h3 class="section-title">What people keep asking</h3>
+          <p class="section-note" id="ledger-note"></p>
+        </div>
+        <ol class="ledger" id="ledger"></ol>
+      </section>
+
+      <section class="slate-block" aria-label="Content ideas">
+        <div class="section-head">
+          <h3 class="section-title">Commissioning slate</h3>
+          <p class="section-note">Drafted from the groups above. Copy one straight into your notes.</p>
+        </div>
+        <ol class="slate" id="slate"></ol>
+        <p class="template-note" id="template-note" hidden>Template ideas — add an LLM key for drafted titles.</p>
+      </section>
+    </section>
+
+    <footer class="colophon">
+      <p id="colophon-text">Set in Instrument Serif &amp; Space Mono.</p>
+    </footer>
+  </main>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
