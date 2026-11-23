@@ -1,7 +1,6 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 youtube-comment-downloader>=0.1.75
-yt-dlp>=2024.8.6
 scikit-learn>=1.4.0
 pydantic>=2.7.0
 python-dotenv>=1.0.0

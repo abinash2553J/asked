@@ -7,7 +7,6 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "youtube-comment-downloader>=0.1.75",
-    "yt-dlp>=2024.8.6",
     "scikit-learn>=1.4",
     "pydantic>=2.7",
     "python-dotenv>=1.0",

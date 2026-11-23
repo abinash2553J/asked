@@ -84,3 +84,36 @@ def test_question_comments_filters():
         Comment(text="Why is audio out of sync"),
     ]
     assert len(question_comments(comments)) == 2
+
+
+def test_youtube_api_source_parses_items(monkeypatch):
+    from app.youtube import YouTubeApiSource
+    import httpx
+
+    fake_response = {
+        "items": [
+            {
+                "snippet": {
+                    "topLevelComment": {
+                        "snippet": {
+                            "textOriginal": "How do I deploy to cloud?",
+                            "authorDisplayName": "Developer",
+                            "likeCount": 15,
+                            "publishedAt": "2026-01-01T00:00:00Z",
+                        }
+                    }
+                }
+            }
+        ]
+    }
+
+    def fake_get(url, params, **kwargs):
+        return httpx.Response(200, json=fake_response, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    source = YouTubeApiSource(api_key="fake-key")
+    comments = source.fetch("dQw4w9WgXcQ", limit=10, order="relevance", deadline=9999999999.0)
+    assert len(comments) == 1
+    assert comments[0].text == "How do I deploy to cloud?"
+    assert comments[0].author == "Developer"
+    assert comments[0].likes == 15

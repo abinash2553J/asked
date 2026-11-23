@@ -1,18 +1,18 @@
 import json
 import re
-import shutil
-import subprocess
 import time
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
+from .config import get_settings
 from .models import Comment, VideoMeta
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 PATH_PREFIXES = ("shorts", "embed", "live", "v")
 
 OEMBED_URL = "https://www.youtube.com/oembed"
+YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 
 
 class FetchError(Exception):
@@ -72,9 +72,40 @@ def parse_video_id(raw: str) -> str:
     return vid
 
 
-def fetch_meta(video_id: str, timeout: float = 10.0) -> VideoMeta:
+def fetch_meta(video_id: str, timeout: float = 10.0, api_key: str | None = None) -> VideoMeta:
+    if api_key is None:
+        try:
+            api_key = get_settings().youtube_api_key
+        except Exception:
+            api_key = ""
+
     url = f"https://www.youtube.com/watch?v={video_id}"
     meta = VideoMeta(video_id=video_id, url=url)
+
+    # 1. Try official Google YouTube Data API v3 if API key is provided
+    if api_key:
+        try:
+            resp = httpx.get(
+                f"{YOUTUBE_API_BASE}/videos",
+                params={"part": "snippet", "id": video_id, "key": api_key},
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                items = resp.json().get("items", [])
+                if items:
+                    snippet = items[0].get("snippet", {})
+                    meta.title = snippet.get("title", "")
+                    meta.author = snippet.get("channelTitle", "")
+                    return meta
+                raise VideoUnavailable("Video not found, private, or age-restricted.")
+            if resp.status_code == 404:
+                raise VideoUnavailable("Video not found, private, or age-restricted.")
+        except VideoUnavailable:
+            raise
+        except Exception:
+            pass  # Fall back to oembed
+
+    # 2. Fall back to standard YouTube OEMBED
     try:
         resp = httpx.get(
             OEMBED_URL,
@@ -109,7 +140,101 @@ class CommentSource:
         raise NotImplementedError
 
 
+class YouTubeApiSource(CommentSource):
+    """Official Google YouTube Data API v3 source (no scraping, zero rate limits)."""
+
+    name = "google-api"
+
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key
+
+    def fetch(self, video_id: str, limit: int, order: str, deadline: float) -> list[Comment]:
+        if not self.api_key:
+            raise FetchError("Google YouTube API key is missing.")
+
+        sort_order = "time" if order == "recent" else "relevance"
+        out: list[Comment] = []
+        page_token: str | None = None
+
+        while len(out) < limit and time.monotonic() < deadline:
+            batch_size = min(100, limit - len(out))
+            params: dict[str, str | int] = {
+                "part": "snippet",
+                "videoId": video_id,
+                "maxResults": batch_size,
+                "order": sort_order,
+                "textFormat": "plainText",
+                "key": self.api_key,
+            }
+            if page_token:
+                params["pageToken"] = page_token
+
+            try:
+                resp = httpx.get(
+                    f"{YOUTUBE_API_BASE}/commentThreads",
+                    params=params,
+                    timeout=min(15.0, max(3.0, deadline - time.monotonic())),
+                )
+            except httpx.HTTPError as exc:
+                raise FetchError(f"YouTube API request failed: {exc}") from exc
+
+            if resp.status_code == 403:
+                data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                err_items = data.get("error", {}).get("errors", [])
+                reasons = [e.get("reason", "") for e in err_items]
+                if "commentsDisabled" in reasons:
+                    raise CommentsDisabled("Comments are turned off for this video.")
+                if "quotaExceeded" in reasons or "dailyLimitExceeded" in reasons:
+                    raise RateLimited("Google YouTube API daily quota exceeded.")
+                msg = data.get("error", {}).get("message", "YouTube API permission or quota error.")
+                raise FetchError(f"YouTube API error: {msg}")
+
+            if resp.status_code == 404:
+                raise VideoUnavailable("Video not found or private.")
+
+            if resp.status_code == 400:
+                data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                msg = data.get("error", {}).get("message", "Invalid request or YouTube API key.")
+                raise FetchError(f"YouTube API error: {msg}")
+
+            if resp.status_code != 200:
+                raise FetchError(f"YouTube API HTTP {resp.status_code}")
+
+            data = resp.json()
+            items = data.get("items", [])
+            if not items:
+                break
+
+            for item in items:
+                top = item.get("snippet", {}).get("topLevelComment", {}).get("snippet", {})
+                text = str(top.get("textOriginal") or top.get("textDisplay") or "").strip()
+                if not text:
+                    continue
+                author = str(top.get("authorDisplayName") or "").strip()
+                likes = _to_int(top.get("likeCount", 0))
+                published = str(top.get("publishedAt") or "")
+                out.append(
+                    Comment(
+                        text=text,
+                        author=author,
+                        likes=likes,
+                        published=published,
+                        is_reply=False,
+                    )
+                )
+                if len(out) >= limit:
+                    break
+
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+
+        return out
+
+
 class InnertubeSource(CommentSource):
+    """Fallback scraping source for environments without an API key."""
+
     name = "innertube"
 
     def fetch(self, video_id: str, limit: int, order: str, deadline: float) -> list[Comment]:
@@ -136,53 +261,10 @@ class InnertubeSource(CommentSource):
                 if len(out) >= limit or time.monotonic() > deadline:
                     break
         except Exception as exc:  # noqa: BLE001 - surface as typed error
+            err_str = str(exc)
+            if "Expecting value" in err_str or "char 0" in err_str or "429" in err_str:
+                raise RateLimited("YouTube returned an empty or rate-limited response.") from exc
             raise FetchError(f"Comment fetch failed: {exc}") from exc
-        return out
-
-
-class YtDlpSource(CommentSource):
-    name = "yt-dlp"
-
-    def fetch(self, video_id: str, limit: int, order: str, deadline: float) -> list[Comment]:
-        if not shutil.which("yt-dlp"):
-            raise FetchError("yt-dlp is not installed.")
-        timeout = max(5.0, min(deadline - time.monotonic(), 60.0))
-        cmd = [
-            "yt-dlp",
-            "--write-comments",
-            "--skip-download",
-            "--extractor-args",
-            f"youtube:comment_sort={'new' if order == 'recent' else 'top'};max_comments={limit},all,100",
-            "-J",
-            f"https://www.youtube.com/watch?v={video_id}",
-        ]
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        except subprocess.TimeoutExpired as exc:
-            raise FetchError("Comment fetch timed out.") from exc
-
-        if proc.returncode != 0:
-            err = (proc.stderr or "").lower()
-            if "comments are turned off" in err or "comments disabled" in err:
-                raise CommentsDisabled("Comments are turned off for this video.")
-            if "private video" in err or "video unavailable" in err:
-                raise VideoUnavailable("Video not found, private, or age-restricted.")
-            if "429" in err or "too many requests" in err:
-                raise RateLimited("YouTube is rate-limiting this machine. Try again shortly.")
-            raise FetchError("yt-dlp could not fetch this video.")
-
-        data = json.loads(proc.stdout or "{}")
-        out: list[Comment] = []
-        for item in (data.get("comments") or [])[:limit]:
-            out.append(
-                Comment(
-                    text=str(item.get("text", "")).strip(),
-                    author=str(item.get("author", "")).strip(),
-                    likes=_to_int(item.get("like_count")),
-                    published=str(item.get("_time_text") or item.get("timestamp") or ""),
-                    is_reply=bool(item.get("parent")),
-                )
-            )
         return out
 
 
@@ -191,18 +273,43 @@ def fetch_comments(
     limit: int,
     order: str,
     budget: float,
+    api_key: str | None = None,
 ) -> list[Comment]:
+    if api_key is None:
+        try:
+            api_key = get_settings().youtube_api_key
+        except Exception:
+            api_key = ""
+
     deadline = time.monotonic() + budget
     errors: list[str] = []
-    for source in (InnertubeSource(), YtDlpSource()):
+    saw_rate_limit = False
+
+    sources: list[CommentSource] = []
+    if api_key:
+        sources.append(YouTubeApiSource(api_key))
+    sources.append(InnertubeSource())
+
+    for source in sources:
         try:
             comments = source.fetch(video_id, limit, order, deadline)
-        except CommentsDisabled:
+        except (CommentsDisabled, VideoUnavailable):
             raise
+        except RateLimited as exc:
+            saw_rate_limit = True
+            errors.append(f"{source.name}: {exc.message}")
+            continue
         except FetchError as exc:
+            if "rate-limit" in exc.message.lower() or "429" in exc.message.lower():
+                saw_rate_limit = True
             errors.append(f"{source.name}: {exc.message}")
             continue
         if comments:
             return comments
         errors.append(f"{source.name}: returned no comments")
+
+    if saw_rate_limit:
+        raise RateLimited(
+            "YouTube is rate-limiting this machine. Set a Google YouTube Data API key (YOUTUBE_API_KEY) in .env to eliminate rate limits."
+        )
     raise FetchError("Could not fetch comments. " + " | ".join(errors))

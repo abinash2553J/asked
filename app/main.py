@@ -86,7 +86,11 @@ async def _unexpected(_: Request, exc: Exception) -> JSONResponse:
 @app.get("/api/health")
 async def health() -> dict:
     settings = get_settings()
-    return {"ok": True, "llm": settings.llm_enabled}
+    return {
+        "ok": True,
+        "llm": settings.llm_enabled,
+        "youtube_api": bool(settings.youtube_api_key),
+    }
 
 
 @app.post("/api/analyze")

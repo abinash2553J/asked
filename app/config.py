@@ -38,6 +38,9 @@ class Settings:
         self.llm_model = os.getenv("LLM_MODEL", default_model)
         self.llm_top_k = int(os.getenv("LLM_TOP_K", "10"))
 
+        # Official Google YouTube Data API v3 Key
+        self.youtube_api_key = os.getenv("YOUTUBE_API_KEY", os.getenv("GOOGLE_API_KEY", "")).strip()
+
     @property
     def llm_enabled(self) -> bool:
         return bool(self.llm_api_key)

@@ -15,7 +15,7 @@ uv run pytest                            # 28 tests, ~1s
 
 - `app/pipeline.py` — the whole flow: parse → fetch → normalise → question filter → cluster →
   rank → ideas. Start here when behaviour is wrong.
-- `app/youtube.py` — InnerTube fetch, then `youtube-comment-downloader`, then `yt-dlp` CLI.
+- `app/youtube.py` — Google YouTube Data API v3 (primary when YOUTUBE_API_KEY is configured), then InnerTube fallback.
 - `app/questions.py` — normalisation and the question heuristic.
 - `app/cluster.py` — TF-IDF + average-linkage agglomeration, `DEFAULT_THRESHOLD = 0.38`.
 - `app/ideas.py` — deterministic templates, optional OpenAI-compatible phrasing.
